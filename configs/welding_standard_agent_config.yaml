@@ -1,0 +1,53 @@
+agent:
+  name: welding_standard_agent
+  role: 管道焊接标准制定智能体
+  input_source: welding_reask_agent_json
+  output_format: json
+
+reference:
+  wps_docx_path: data/MHPWPS-062.docx
+  max_reference_chars: 4000
+  max_reference_query_chars: 1000
+
+llm:
+  enabled: true
+  model_config_path: configs/model_config.yaml
+  prompt_path: prompts/welding_standard_agent_prompt.md
+  max_evidence_chars: 9000
+  max_sources_per_query: 3
+
+generation:
+  use_industry_defaults: true
+  bead_strategy: root_gtaw_fill_smaw
+  reference_fill_mode: aggressive_reference
+  default_unknown: "/"
+  industry_standards_path: configs/welding_industry_standards.yaml
+  use_industry_standards: true
+  allow_verified_search_override: true
+  min_evidence_match_score: 3
+  evidence_decision_mode: balanced
+  min_verified_search_score: 4
+  allow_verified_network_refine: true
+  conflict_policy: prefer_yaml_unless_strong_verified
+
+rag_search:
+  enabled: true
+  index_dir: data/rag/faiss
+  embedding_url: http://127.0.0.1:8001/v1/embeddings
+  rerank_url: http://127.0.0.1:8002/rerank
+  embedding_model: bge-m3
+  rerank_model: bge-reranker-v2-m3
+  semantic_top_k: 10
+  keyword_top_k: 10
+  fusion_top_k: 10
+  final_top_k: 5
+  rrf_k: 60
+
+mcp_search:
+  enabled: true
+  transport: streamable_http
+  tool_name: tavily_search
+  command: ""
+  args: []
+  url: https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}
+  max_results: 5
