@@ -8,3 +8,4 @@
 *.tar.gz filter=lfs diff=lfs merge=lfs -text
 models/bge-m3/pytorch_model.bin filter=lfs diff=lfs merge=lfs -text
 models/bge-reranker-v2-m3/model.safetensors filter=lfs diff=lfs merge=lfs -text
+*.part-* filter=lfs diff=lfs merge=lfs -text
