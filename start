@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VENV_DIR="$ROOT_DIR/.venv-vllm-cpu"
+
+if [[ ! -f "$VENV_DIR/bin/activate" ]]; then
+  echo "vLLM virtualenv not found: $VENV_DIR"
+  exit 1
+fi
+
+mkdir -p "$ROOT_DIR/.cache" "$ROOT_DIR/logs"
+
+export XDG_CACHE_HOME="$ROOT_DIR/.cache"
+export HF_HOME="$ROOT_DIR/.hf-cache"
+
+source "$VENV_DIR/bin/activate"
+
+BGE_M3_MODEL="$ROOT_DIR/models/bge-m3"
+RERANKER_MODEL="$ROOT_DIR/models/bge-reranker-v2-m3"
+
+if [[ ! -d "$BGE_M3_MODEL" ]]; then
+  echo "Model not found: $BGE_M3_MODEL"
+  exit 1
+fi
+
+if [[ ! -d "$RERANKER_MODEL" ]]; then
+  echo "Model not found: $RERANKER_MODEL"
+  exit 1
+fi
+
+cleanup() {
+  echo
+  echo "Stopping vLLM services..."
+  kill "${BGE_PID:-}" "${RERANKER_PID:-}" 2>/dev/null || true
+  wait "${BGE_PID:-}" "${RERANKER_PID:-}" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+echo "Starting bge-m3 embedding service on http://0.0.0.0:8001"
+vllm serve "$BGE_M3_MODEL" \
+  --host 0.0.0.0 \
+  --port 8001 \
+  --served-model-name bge-m3 \
+  --runner pooling \
+  --convert embed \
+  --dtype float32 \
+  --gpu-memory-utilization 0.5 \
+  > "$ROOT_DIR/logs/bge-m3-vllm.log" 2>&1 &
+BGE_PID=$!
+
+echo "Starting bge-reranker-v2-m3 rerank service on http://0.0.0.0:8002"
+vllm serve "$RERANKER_MODEL" \
+  --host 0.0.0.0 \
+  --port 8002 \
+  --served-model-name bge-reranker-v2-m3 \
+  --runner pooling \
+  --convert classify \
+  --dtype float32 \
+  --gpu-memory-utilization 0.5 \
+  > "$ROOT_DIR/logs/bge-reranker-v2-m3-vllm.log" 2>&1 &
+RERANKER_PID=$!
+
+echo
+echo "Services are starting. Logs:"
+echo "  $ROOT_DIR/logs/bge-m3-vllm.log"
+echo "  $ROOT_DIR/logs/bge-reranker-v2-m3-vllm.log"
+echo
+echo "Endpoints:"
+echo "  Embedding: http://127.0.0.1:8001/v1/embeddings"
+echo "  Rerank:    http://127.0.0.1:8002/v1/rerank"
+echo
+echo "Press Ctrl+C to stop both services."
+
+wait "$BGE_PID" "$RERANKER_PID"

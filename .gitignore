@@ -13,3 +13,7 @@ data/raw/
 data/processed/
 data/mineru/
 data/rag/
+
+.venv-vllm-cpu/
+.hf-cache/
+models/*/.cache/
